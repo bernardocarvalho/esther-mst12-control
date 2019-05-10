@@ -23,20 +23,31 @@ uint8_t state = STOP;
 // The port to listen for incoming TCP connections
 #define LISTEN_PORT 80
 #define LED_WEMOOS_D1_MINI 2 // Pin D4 GPIO2
+#define RELAY_OUT 0          // D3  Relay Output
+#define SWITCH_3_LEFT 5
+//#define LED_YELLOW 0         // Pin D3 GPIO0
 
 // Create an instance of the server
 WiFiServer server(LISTEN_PORT);
 void printWifiStatus();
 
 void setup(void) {
-  // Start Serial
+  pinMode(0, OUTPUT);       // D3  Relay Output
+  pinMode(15, OUTPUT);      // D8
+  pinMode(13, OUTPUT);      // D7
+  pinMode(12, OUTPUT);      // D6
+  pinMode(16, OUTPUT);      // D0
+  pinMode(5, INPUT_PULLUP); // D1  3-state SWITCH
+  pinMode(4, INPUT_PULLUP); // D2  3-state SWITCH
 
+  // Start Serial
+  int i = 0;
   Serial.begin(115200);
   Serial.println("Trying WiFi ....");
 
   // Create UI
   rest.title("Relay Control");
-  rest.button(4);
+  rest.button(4); // LED
   rest.variable("state", &state);
   rest.label("state");
 
@@ -48,10 +59,17 @@ void setup(void) {
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
+    if (i++ > 20) {
+      Serial.println("Can't connect, Quitting...");
+      break;
+    }
     Serial.print(".");
   }
   Serial.println("");
   Serial.println("WiFi connected");
+  // digitalWrite(LED_YELLOW, HIGH);
+  // delay(500);
+  // digitalWrite(LED_YELLOW, LOW);
 
   // Start the server
   server.begin();
@@ -64,6 +82,29 @@ void setup(void) {
 }
 
 void loop() {
+  static const unsigned long REFRESH_INTERVAL = 1000; // ms
+  static unsigned long lastRefreshTime = 0;
+  static bool ledOn = true;
+  // unsigned long mills;
+  int sensorVal = digitalRead(5);
+  digitalWrite(13, sensorVal);
+
+  if (millis() - lastRefreshTime >= REFRESH_INTERVAL) {
+    lastRefreshTime += REFRESH_INTERVAL;
+    Serial.print("- ");
+    Serial.println(lastRefreshTime);
+    digitalWrite(0, ledOn); // D3
+    digitalWrite(12, ledOn);
+    digitalWrite(16, ledOn);
+    // digitalWrite(13, ledOn);
+    //  digitalWrite(15, ledOn);
+    // if (ledOn) {
+    // Serial.print("+ ");
+    //} else {
+    // Serial.print("/ ");
+    //}
+    ledOn = not ledOn;
+  }
 
   // Handle REST calls
   WiFiClient client = server.available();
@@ -74,7 +115,7 @@ void loop() {
     delay(1);
   }
   rest.handle(client);
-  // Serial.print(".");
+  // Serial.print("~");
 }
 
 void printWifiStatus() {
