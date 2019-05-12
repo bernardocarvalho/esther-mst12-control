@@ -15,30 +15,112 @@ aREST_UI rest = aREST_UI();
 const char *ssid = "Vodafone-EDB45A";
 const char *password = "71F62F063E";
 
-enum State_enum { STOP, FORWARD, ROTATE_RIGHT, ROTATE_LEFT };
-enum Sensors_enum { NONE, SENSOR_RIGHT, SENSOR_LEFT, BOTH };
+enum State_enum { OFF_LIMITS, IN_LIMIT, OUT_LIMIT, ERROR };
+// enum State_enum { STOP, FORWARD, ROTATE_RIGHT, ROTATE_LEFT };
+// enum Sensors_enum { NONE, SENSOR_RIGHT, SENSOR_LEFT, BOTH };
 
-uint8_t state = STOP;
+uint8_t state = OFF_LIMITS;
 
 // The port to listen for incoming TCP connections
 #define LISTEN_PORT 80
 #define LED_WEMOOS_D1_MINI 2 // Pin D4 GPIO2
+#define LIMIT_OUT 16         // D
+#define LIMIT_IN 13          // D
+#define SWITCH_3_OUT 5       // D1
+#define SWITCH_3_IN 4        // D2
+#define RELAY_IN 2           // D4  Relay Output
 #define RELAY_OUT 0          // D3  Relay Output
-#define SWITCH_3_LEFT 5
 //#define LED_YELLOW 0         // Pin D3 GPIO0
 
 // Create an instance of the server
 WiFiServer server(LISTEN_PORT);
 void printWifiStatus();
 
+int handle_rest_client() {
+  // Handle REST calls
+  WiFiClient client = server.available();
+  if (!client) {
+    return 0;
+  }
+  while (!client.available()) {
+    delay(1);
+  }
+  rest.handle(client);
+  return 0;
+  // Serial.print("~");
+}
+void state_machine_run() // uint8_t sensors)
+{
+  int sensorIn = digitalRead(SWITCH_3_IN);
+  int sensorOut = digitalRead(SWITCH_3_OUT);
+  int sensorLimIn = digitalRead(LIMIT_IN);
+  int sensorLimOut = digitalRead(LIMIT_OUT);
+
+  switch (state) {
+  case OFF_LIMITS:
+    if (!sensorLimIn) {
+      state = IN_LIMIT;
+    } else if (!sensorLimOut) {
+      state = OUT_LIMIT;
+    } else if (!sensorIn) {
+      digitalWrite(RELAY_IN, HIGH);
+      digitalWrite(RELAY_OUT, LOW);
+    } else if (!sensorOut) {
+      digitalWrite(RELAY_IN, LOW);
+      digitalWrite(RELAY_OUT, HIGH);
+    } else {
+      digitalWrite(RELAY_IN, LOW);
+      digitalWrite(RELAY_OUT, LOW);
+    }
+
+    break;
+
+  case IN_LIMIT:
+    if (sensorLimIn) {
+      state = OFF_LIMITS;
+    } else if (!sensorLimOut) {
+      state = ERROR;
+    } else if (!sensorOut) {
+      digitalWrite(RELAY_IN, LOW);
+      digitalWrite(RELAY_OUT, HIGH);
+    } else {
+      digitalWrite(RELAY_IN, LOW);
+      digitalWrite(RELAY_OUT, LOW);
+    }
+    break;
+  case OUT_LIMIT:
+    if (sensorLimOut) {
+      state = OFF_LIMITS;
+    } else if (!sensorLimIn) {
+      state = ERROR;
+    } else if (!sensorIn) {
+      digitalWrite(RELAY_IN, HIGH);
+      digitalWrite(RELAY_OUT, LOW);
+    } else {
+      digitalWrite(RELAY_IN, LOW);
+      digitalWrite(RELAY_OUT, LOW);
+    }
+    break;
+  case ERROR:
+    digitalWrite(RELAY_IN, LOW);
+    digitalWrite(RELAY_OUT, LOW);
+    if (sensorLimIn && sensorLimOut) {
+      state = OFF_LIMITS;
+    }
+    break;
+  }
+}
 void setup(void) {
-  pinMode(0, OUTPUT);       // D3  Relay Output
-  pinMode(15, OUTPUT);      // D8
-  pinMode(13, OUTPUT);      // D7
-  pinMode(12, OUTPUT);      // D6
-  pinMode(16, OUTPUT);      // D0
-  pinMode(5, INPUT_PULLUP); // D1  3-state SWITCH
-  pinMode(4, INPUT_PULLUP); // D2  3-state SWITCH
+  // pinMode(15, LIMIT_O); // D8
+  pinMode(0, OUTPUT);  // D3  Relay Output
+  pinMode(13, OUTPUT); // D7
+  pinMode(12, OUTPUT); // D6
+  pinMode(16, OUTPUT); // D0
+  // pinMode(4, INPUT_PULLUP); // D2  3-state SWITCH
+  pinMode(SWITCH_3_OUT, INPUT_PULLUP); // D
+  pinMode(SWITCH_3_IN, INPUT_PULLUP);  // D
+  pinMode(LIMIT_OUT, INPUT_PULLUP);    // D
+  pinMode(LIMIT_IN, INPUT_PULLUP);     // D
 
   // Start Serial
   int i = 0;
@@ -86,17 +168,19 @@ void loop() {
   static unsigned long lastRefreshTime = 0;
   static bool ledOn = true;
   // unsigned long mills;
-  int sensorVal = digitalRead(5);
-  digitalWrite(13, sensorVal);
+  // int sensorVal = digitalRead(5);
+  // digitalWrite(13,sensorVal);
 
   if (millis() - lastRefreshTime >= REFRESH_INTERVAL) {
     lastRefreshTime += REFRESH_INTERVAL;
-    Serial.print("- ");
+    Serial.print("S- ");
+    Serial.print(state);
+    Serial.print(": ");
     Serial.println(lastRefreshTime);
-    digitalWrite(0, ledOn); // D3
-    digitalWrite(12, ledOn);
-    digitalWrite(16, ledOn);
-    // digitalWrite(13, ledOn);
+    // digitalWrite(0, ledOn); // D3
+    // digitalWrite(12, ledOn);
+    // digitalWrite(16, ledOn);
+    //// digitalWrite(13, ledOn);
     //  digitalWrite(15, ledOn);
     // if (ledOn) {
     // Serial.print("+ ");
@@ -105,17 +189,8 @@ void loop() {
     //}
     ledOn = not ledOn;
   }
-
-  // Handle REST calls
-  WiFiClient client = server.available();
-  if (!client) {
-    return;
-  }
-  while (!client.available()) {
-    delay(1);
-  }
-  rest.handle(client);
-  // Serial.print("~");
+  state_machine_run();
+  handle_rest_client();
 }
 
 void printWifiStatus() {
