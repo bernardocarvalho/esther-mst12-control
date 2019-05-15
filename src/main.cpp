@@ -24,13 +24,17 @@ uint8_t state = OFF_LIMITS;
 // The port to listen for incoming TCP connections
 #define LISTEN_PORT 80
 #define LED_WEMOOS_D1_MINI 2 // Pin D4 GPIO2
-#define LIMIT_OUT 16         // D
-#define LIMIT_IN 13          // D
+#define LIMIT_OUT 14         // D5
+#define LIMIT_IN 12          // D6
 #define SWITCH_3_OUT 5       // D1
 #define SWITCH_3_IN 4        // D2
-#define RELAY_IN 2           // D4  Relay Output
+#define RELAY_IN 2           // D4  Relay Output  LED RED for now
 #define RELAY_OUT 0          // D3  Relay Output
-//#define LED_YELLOW 0         // Pin D3 GPIO0
+#define LED_OUT 16           // D0
+#define LED_IN 13            // D7
+// pinMode(13, OUTPUT); // D7
+// pinMode(12, OUTPUT); // D6
+// pinMode(16, OUTPUT); // D0
 
 // Create an instance of the server
 WiFiServer server(LISTEN_PORT);
@@ -63,14 +67,20 @@ void state_machine_run() // uint8_t sensors)
     } else if (!sensorLimOut) {
       state = OUT_LIMIT;
     } else if (!sensorIn) {
+      digitalWrite(LED_IN, HIGH);
+      digitalWrite(LED_OUT, LOW);
       digitalWrite(RELAY_IN, HIGH);
       digitalWrite(RELAY_OUT, LOW);
     } else if (!sensorOut) {
+      digitalWrite(LED_IN, LOW);
+      digitalWrite(LED_OUT, HIGH);
       digitalWrite(RELAY_IN, LOW);
       digitalWrite(RELAY_OUT, HIGH);
     } else {
-      digitalWrite(RELAY_IN, LOW);
-      digitalWrite(RELAY_OUT, LOW);
+      digitalWrite(LED_IN, LOW);
+      digitalWrite(LED_OUT, LOW);
+      digitalWrite(RELAY_IN, HIGH);
+      digitalWrite(RELAY_OUT, HIGH);
     }
 
     break;
@@ -112,10 +122,14 @@ void state_machine_run() // uint8_t sensors)
 }
 void setup(void) {
   // pinMode(15, LIMIT_O); // D8
-  pinMode(0, OUTPUT);  // D3  Relay Output
-  pinMode(13, OUTPUT); // D7
-  pinMode(12, OUTPUT); // D6
-  pinMode(16, OUTPUT); // D0
+  // pinMode(0, OUTPUT);  // D3  Relay Output
+  // pinMode(13, OUTPUT); // D7
+  // pinMode(12, OUTPUT); // D6
+  // pinMode(16, OUTPUT); // D0
+  pinMode(LED_OUT, OUTPUT);   // D
+  pinMode(LED_IN, OUTPUT);    // D
+  pinMode(RELAY_OUT, OUTPUT); // D
+  pinMode(RELAY_IN, OUTPUT);  // D
   // pinMode(4, INPUT_PULLUP); // D2  3-state SWITCH
   pinMode(SWITCH_3_OUT, INPUT_PULLUP); // D
   pinMode(SWITCH_3_IN, INPUT_PULLUP);  // D
