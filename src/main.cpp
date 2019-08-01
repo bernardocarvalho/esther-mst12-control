@@ -12,11 +12,12 @@ aREST_UI rest = aREST_UI();
 // WiFi parameters
 // const char *ssid = "Cabovisao-E30F";
 // const char *password = "e0cec31ae30f";
-const char *ssid = "Vodafone-EDB45A";
-const char *password = "71F62F063E";
+// const char *ssid = "Vodafone-EDB45A";
+// const char *password = "71F62F063E";
+const char *ssid = "Lab. Plasmas Hipersonicos";
+const char *password = "";
 
 enum State_enum { OFF_LIMITS, IN_LIMIT, OUT_LIMIT, ERROR };
-// enum State_enum { STOP, FORWARD, ROTATE_RIGHT, ROTATE_LEFT };
 // enum Sensors_enum { NONE, SENSOR_RIGHT, SENSOR_LEFT, BOTH };
 
 uint8_t state = OFF_LIMITS;
@@ -26,15 +27,12 @@ uint8_t state = OFF_LIMITS;
 #define LED_WEMOOS_D1_MINI 2 // Pin D4 GPIO2
 #define LIMIT_OUT 14         // D5
 #define LIMIT_IN 12          // D6
-#define SWITCH_3_OUT 5       // D1
-#define SWITCH_3_IN 4        // D2
-#define RELAY_IN 2           // D4  Relay Output  LED RED for now
+#define SWITCH_3_IN 5        // D1
+#define SWITCH_3_OUT 4       // D2
+#define RELAY_IN 2           // D4  Relay Output HIGH = OFF (NC)
 #define RELAY_OUT 0          // D3  Relay Output
-#define LED_OUT 16           // D0
-#define LED_IN 13            // D7
-// pinMode(13, OUTPUT); // D7
-// pinMode(12, OUTPUT); // D6
-// pinMode(16, OUTPUT); // D0
+#define LED_IN 16            // D0
+#define LED_OUT 13           // D7
 
 // Create an instance of the server
 WiFiServer server(LISTEN_PORT);
@@ -59,12 +57,13 @@ void state_machine_run() // uint8_t sensors)
   int sensorOut = digitalRead(SWITCH_3_OUT);
   int sensorLimIn = digitalRead(LIMIT_IN);
   int sensorLimOut = digitalRead(LIMIT_OUT);
+  // int sensorLimOut = 0; // No Sensor yet  digitalRead(LIMIT_OUT);
 
   switch (state) {
   case OFF_LIMITS:
-    if (!sensorLimIn) {
+    if (sensorLimIn) {
       state = IN_LIMIT;
-    } else if (!sensorLimOut) {
+    } else if (sensorLimOut) {
       state = OUT_LIMIT;
     } else if (!sensorIn) {
       digitalWrite(LED_IN, HIGH);
@@ -86,35 +85,35 @@ void state_machine_run() // uint8_t sensors)
     break;
 
   case IN_LIMIT:
-    if (sensorLimIn) {
+    if (!sensorLimIn) {
       state = OFF_LIMITS;
-    } else if (!sensorLimOut) {
+    } else if (sensorLimOut) {
       state = ERROR;
     } else if (!sensorOut) {
       digitalWrite(RELAY_IN, LOW);
       digitalWrite(RELAY_OUT, HIGH);
     } else {
-      digitalWrite(RELAY_IN, LOW);
-      digitalWrite(RELAY_OUT, LOW);
+      digitalWrite(RELAY_IN, HIGH);
+      digitalWrite(RELAY_OUT, HIGH);
     }
     break;
   case OUT_LIMIT:
-    if (sensorLimOut) {
+    if (!sensorLimOut) {
       state = OFF_LIMITS;
-    } else if (!sensorLimIn) {
+    } else if (sensorLimIn) {
       state = ERROR;
     } else if (!sensorIn) {
       digitalWrite(RELAY_IN, HIGH);
       digitalWrite(RELAY_OUT, LOW);
     } else {
-      digitalWrite(RELAY_IN, LOW);
-      digitalWrite(RELAY_OUT, LOW);
+      digitalWrite(RELAY_IN, HIGH);
+      digitalWrite(RELAY_OUT, HIGH);
     }
     break;
   case ERROR:
-    digitalWrite(RELAY_IN, LOW);
-    digitalWrite(RELAY_OUT, LOW);
-    if (sensorLimIn && sensorLimOut) {
+    digitalWrite(RELAY_IN, HIGH);
+    digitalWrite(RELAY_OUT, HIGH);
+    if (!sensorLimIn && !sensorLimOut) {
       state = OFF_LIMITS;
     }
     break;
@@ -122,14 +121,13 @@ void state_machine_run() // uint8_t sensors)
 }
 void setup(void) {
   // pinMode(15, LIMIT_O); // D8
-  // pinMode(0, OUTPUT);  // D3  Relay Output
-  // pinMode(13, OUTPUT); // D7
-  // pinMode(12, OUTPUT); // D6
   // pinMode(16, OUTPUT); // D0
   pinMode(LED_OUT, OUTPUT);   // D
   pinMode(LED_IN, OUTPUT);    // D
   pinMode(RELAY_OUT, OUTPUT); // D
   pinMode(RELAY_IN, OUTPUT);  // D
+  digitalWrite(RELAY_IN, HIGH);
+  digitalWrite(RELAY_OUT, HIGH);
   // pinMode(4, INPUT_PULLUP); // D2  3-state SWITCH
   pinMode(SWITCH_3_OUT, INPUT_PULLUP); // D
   pinMode(SWITCH_3_IN, INPUT_PULLUP);  // D
